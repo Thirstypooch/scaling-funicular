@@ -15,6 +15,7 @@ class InventoryLoadScreen extends StatefulWidget {
 class _InventoryLoadScreenState extends State<InventoryLoadScreen> {
   late List<InventoryLoadItem> _items;
   final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -22,11 +23,26 @@ class _InventoryLoadScreenState extends State<InventoryLoadScreen> {
     _items = List.from(MockInventoryLoadData.items);
   }
 
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   void _addItem(InventoryLoadItem item) {
     setState(() {
       _items.insert(0, item);
     });
     _listKey.currentState?.insertItem(0, duration: const Duration(milliseconds: 300));
+
+    // Scroll to top to show the newly added item with a gentle animation
+    Future.delayed(const Duration(milliseconds: 150), () {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeOutCubic,
+      );
+    });
   }
 
   void _editItem(int index, InventoryLoadItem item) {
@@ -206,6 +222,7 @@ class _InventoryLoadScreenState extends State<InventoryLoadScreen> {
                     Expanded(
                       child: AnimatedList(
                         key: _listKey,
+                        controller: _scrollController,
                         initialItemCount: _items.length,
                         itemBuilder: (context, index, animation) {
                           return _buildAnimatedItem(_items[index], animation, index);
