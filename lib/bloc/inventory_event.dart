@@ -62,6 +62,16 @@ class ResetFilters extends InventoryEvent {
   const ResetFilters();
 }
 
+/// Load more items for infinite scrolling
+class LoadMoreItems extends InventoryEvent {
+  const LoadMoreItems();
+}
+
+/// Refresh inventory data (pull-to-refresh)
+class RefreshInventory extends InventoryEvent {
+  const RefreshInventory();
+}
+
 /// Internal event when new items are received from stream
 class ItemsUpdated extends InventoryEvent {
   final List<dynamic> items;

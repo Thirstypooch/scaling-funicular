@@ -75,6 +75,70 @@ class MockInventoryRepository implements InventoryRepository {
     return FilterOptions.defaults;
   }
 
+  @override
+  Future<ChunkedResult<InventoryItem>> getItemsChunked({
+    required TabType tabType,
+    required int offset,
+    required int limit,
+    String? searchQuery,
+    Map<String, String>? filters,
+  }) async {
+    // Simulate network delay (longer for subsequent chunks to feel realistic)
+    await Future.delayed(Duration(milliseconds: offset == 0 ? 300 : 500));
+
+    // Get all filtered items first
+    final allItems = _applyFilters(
+      items: MockData.getItemsForTab(tabType),
+      tabType: tabType,
+      searchQuery: searchQuery,
+      filters: filters,
+    );
+
+    final totalCount = allItems.length;
+
+    // Apply offset and limit
+    final startIndex = offset.clamp(0, totalCount);
+    final endIndex = (offset + limit).clamp(0, totalCount);
+    final chunk = allItems.sublist(startIndex, endIndex);
+
+    final hasMore = endIndex < totalCount;
+
+    return ChunkedResult(
+      items: chunk,
+      hasMore: hasMore,
+      totalCount: totalCount,
+    );
+  }
+
+  @override
+  Stream<ChunkedResult<InventoryItem>> watchItemsChunked({
+    required TabType tabType,
+    required int offset,
+    required int limit,
+    String? searchQuery,
+    Map<String, String>? filters,
+  }) async* {
+    // Emit initial chunk
+    yield await getItemsChunked(
+      tabType: tabType,
+      offset: offset,
+      limit: limit,
+      searchQuery: searchQuery,
+      filters: filters,
+    );
+
+    // Then emit updates periodically (simulating real-time data)
+    await for (final _ in Stream.periodic(_updateInterval)) {
+      yield await getItemsChunked(
+        tabType: tabType,
+        offset: offset,
+        limit: limit,
+        searchQuery: searchQuery,
+        filters: filters,
+      );
+    }
+  }
+
   List<InventoryItem> _applyFilters({
     required List<InventoryItem> items,
     required TabType tabType,

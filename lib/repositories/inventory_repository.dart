@@ -1,6 +1,25 @@
 import '../models/inventory_item.dart';
 import '../models/tab_type.dart';
 
+/// Result class for chunked/infinite scroll data loading
+class ChunkedResult<T> {
+  final List<T> items;
+  final bool hasMore;
+  final int totalCount;
+
+  const ChunkedResult({
+    required this.items,
+    required this.hasMore,
+    required this.totalCount,
+  });
+
+  factory ChunkedResult.empty() => const ChunkedResult(
+        items: [],
+        hasMore: false,
+        totalCount: 0,
+      );
+}
+
 /// Data class for inventory summary metrics
 class InventorySummary {
   final int totalSellOut;
@@ -71,6 +90,26 @@ abstract class InventoryRepository {
   /// Stream of filtered items for real-time updates
   Stream<List<InventoryItem>> watchFilteredItems({
     required TabType tabType,
+    String? searchQuery,
+    Map<String, String>? filters,
+  });
+
+  /// Get a chunk of items for infinite scrolling
+  /// [offset] - starting index
+  /// [limit] - number of items to fetch
+  Future<ChunkedResult<InventoryItem>> getItemsChunked({
+    required TabType tabType,
+    required int offset,
+    required int limit,
+    String? searchQuery,
+    Map<String, String>? filters,
+  });
+
+  /// Stream a chunk of items for real-time infinite scrolling
+  Stream<ChunkedResult<InventoryItem>> watchItemsChunked({
+    required TabType tabType,
+    required int offset,
+    required int limit,
     String? searchQuery,
     Map<String, String>? filters,
   });

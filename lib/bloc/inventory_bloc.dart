@@ -7,10 +7,12 @@ import 'inventory_state.dart';
 
 class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
   final InventoryRepository repository;
-  StreamSubscription<List<InventoryItem>>? _itemsSubscription;
+  StreamSubscription<ChunkedResult<InventoryItem>>? _itemsSubscription;
 
   InventoryBloc({required this.repository}) : super(InventoryState.initial()) {
     on<LoadInventory>(_onLoadInventory);
+    on<LoadMoreItems>(_onLoadMoreItems);
+    on<RefreshInventory>(_onRefreshInventory);
     on<SubscribeToInventory>(_onSubscribeToInventory);
     on<UnsubscribeFromInventory>(_onUnsubscribeFromInventory);
     on<ChangeTab>(_onChangeTab);
@@ -21,47 +23,142 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     on<InventoryError>(_onInventoryError);
   }
 
-  /// Load inventory data once (no streaming)
+  /// Load initial inventory data (first chunk)
   Future<void> _onLoadInventory(
     LoadInventory event,
     Emitter<InventoryState> emit,
   ) async {
-    emit(state.loading());
+    emit(state.loading().copyWith(
+      currentOffset: 0,
+      hasMore: true,
+      isLoadingMore: false,
+    ));
 
     try {
-      final items = await repository.getFilteredItems(
+      final result = await repository.getItemsChunked(
         tabType: state.selectedTab,
+        offset: 0,
+        limit: InventoryState.initialChunkSize,
         searchQuery: state.searchQuery.isEmpty ? null : state.searchQuery,
         filters: state.filters,
       );
 
-      emit(state.loaded(
-        items: items,
-        date: repository.inventoryDate,
-        streaming: false,
+      emit(state.copyWith(
+        status: InventoryStatus.loaded,
+        items: result.items,
+        hasMore: result.hasMore,
+        totalCount: result.totalCount,
+        currentOffset: result.items.length,
+        summary: InventorySummary.fromItems(result.items, repository.inventoryDate),
+        inventoryDate: repository.inventoryDate,
+        errorMessage: null,
       ));
     } catch (e) {
       emit(state.error(e.toString()));
     }
   }
 
-  /// Subscribe to real-time inventory updates
+  /// Load more items for infinite scrolling
+  Future<void> _onLoadMoreItems(
+    LoadMoreItems event,
+    Emitter<InventoryState> emit,
+  ) async {
+    // Don't load more if already loading or no more items
+    if (state.isLoadingMore || !state.hasMore) return;
+
+    emit(state.copyWith(isLoadingMore: true));
+
+    try {
+      final result = await repository.getItemsChunked(
+        tabType: state.selectedTab,
+        offset: state.currentOffset,
+        limit: InventoryState.loadMoreChunkSize,
+        searchQuery: state.searchQuery.isEmpty ? null : state.searchQuery,
+        filters: state.filters,
+      );
+
+      // Append new items to existing list
+      final updatedItems = [...state.items, ...result.items];
+
+      emit(state.copyWith(
+        items: updatedItems,
+        hasMore: result.hasMore,
+        totalCount: result.totalCount,
+        currentOffset: state.currentOffset + result.items.length,
+        isLoadingMore: false,
+        summary: InventorySummary.fromItems(updatedItems, repository.inventoryDate),
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+        isLoadingMore: false,
+        errorMessage: e.toString(),
+      ));
+    }
+  }
+
+  /// Refresh inventory data (pull-to-refresh)
+  Future<void> _onRefreshInventory(
+    RefreshInventory event,
+    Emitter<InventoryState> emit,
+  ) async {
+    // Don't refresh if already refreshing
+    if (state.isRefreshing) return;
+
+    emit(state.copyWith(isRefreshing: true));
+
+    try {
+      // Simulate a slight delay for visual feedback
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      final result = await repository.getItemsChunked(
+        tabType: state.selectedTab,
+        offset: 0,
+        limit: InventoryState.initialChunkSize,
+        searchQuery: state.searchQuery.isEmpty ? null : state.searchQuery,
+        filters: state.filters,
+      );
+
+      emit(state.copyWith(
+        status: InventoryStatus.loaded,
+        items: result.items,
+        hasMore: result.hasMore,
+        totalCount: result.totalCount,
+        currentOffset: result.items.length,
+        summary: InventorySummary.fromItems(result.items, repository.inventoryDate),
+        inventoryDate: repository.inventoryDate,
+        isRefreshing: false,
+        errorMessage: null,
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+        isRefreshing: false,
+        errorMessage: e.toString(),
+      ));
+    }
+  }
+
+  /// Subscribe to real-time inventory updates (with chunking)
   Future<void> _onSubscribeToInventory(
     SubscribeToInventory event,
     Emitter<InventoryState> emit,
   ) async {
     await _itemsSubscription?.cancel();
 
-    emit(state.loading());
+    emit(state.loading().copyWith(
+      currentOffset: 0,
+      hasMore: true,
+    ));
 
     _itemsSubscription = repository
-        .watchFilteredItems(
+        .watchItemsChunked(
           tabType: state.selectedTab,
+          offset: 0,
+          limit: InventoryState.initialChunkSize,
           searchQuery: state.searchQuery.isEmpty ? null : state.searchQuery,
           filters: state.filters,
         )
         .listen(
-          (items) => add(ItemsUpdated(items)),
+          (result) => add(ItemsUpdated(result.items)),
           onError: (error) => add(InventoryError(error.toString())),
         );
   }
@@ -76,7 +173,7 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     emit(state.copyWith(isStreaming: false));
   }
 
-  /// Change the selected tab
+  /// Change the selected tab (reset pagination)
   Future<void> _onChangeTab(
     ChangeTab event,
     Emitter<InventoryState> emit,
@@ -86,31 +183,45 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     emit(state.copyWith(
       selectedTab: event.tabType,
       status: InventoryStatus.loading,
+      items: [],
+      currentOffset: 0,
+      hasMore: true,
     ));
 
     // Re-subscribe or reload based on current mode
     if (state.isStreaming || _itemsSubscription != null) {
       await _itemsSubscription?.cancel();
       _itemsSubscription = repository
-          .watchFilteredItems(
+          .watchItemsChunked(
             tabType: event.tabType,
+            offset: 0,
+            limit: InventoryState.initialChunkSize,
             searchQuery: state.searchQuery.isEmpty ? null : state.searchQuery,
             filters: state.filters,
           )
           .listen(
-            (items) => add(ItemsUpdated(items)),
+            (result) => add(ItemsUpdated(result.items)),
             onError: (error) => add(InventoryError(error.toString())),
           );
     } else {
       try {
-        final items = await repository.getFilteredItems(
+        final result = await repository.getItemsChunked(
           tabType: event.tabType,
+          offset: 0,
+          limit: InventoryState.initialChunkSize,
           searchQuery: state.searchQuery.isEmpty ? null : state.searchQuery,
           filters: state.filters,
         );
-        emit(state.copyWith(selectedTab: event.tabType).loaded(
-          items: items,
-          date: repository.inventoryDate,
+
+        emit(state.copyWith(
+          selectedTab: event.tabType,
+          status: InventoryStatus.loaded,
+          items: result.items,
+          hasMore: result.hasMore,
+          totalCount: result.totalCount,
+          currentOffset: result.items.length,
+          summary: InventorySummary.fromItems(result.items, repository.inventoryDate),
+          inventoryDate: repository.inventoryDate,
         ));
       } catch (e) {
         emit(state.copyWith(selectedTab: event.tabType).error(e.toString()));
@@ -118,18 +229,21 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     }
   }
 
-  /// Update search query
+  /// Update search query (reset pagination)
   Future<void> _onUpdateSearch(
     UpdateSearch event,
     Emitter<InventoryState> emit,
   ) async {
-    emit(state.copyWith(searchQuery: event.query));
+    emit(state.copyWith(
+      searchQuery: event.query,
+      currentOffset: 0,
+      hasMore: true,
+    ));
 
-    // Debounce search - in a real app, use a debounce transformer
     await _refreshData(emit);
   }
 
-  /// Update a filter value
+  /// Update a filter value (reset pagination)
   Future<void> _onUpdateFilter(
     UpdateFilter event,
     Emitter<InventoryState> emit,
@@ -137,11 +251,15 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     final newFilters = Map<String, String>.from(state.filters);
     newFilters[event.filterKey] = event.filterValue;
 
-    emit(state.copyWith(filters: newFilters));
+    emit(state.copyWith(
+      filters: newFilters,
+      currentOffset: 0,
+      hasMore: true,
+    ));
     await _refreshData(emit);
   }
 
-  /// Reset all filters
+  /// Reset all filters (reset pagination)
   Future<void> _onResetFilters(
     ResetFilters event,
     Emitter<InventoryState> emit,
@@ -154,6 +272,8 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
         'Subfamilia': 'Todos',
       },
       searchQuery: '',
+      currentOffset: 0,
+      hasMore: true,
     ));
     await _refreshData(emit);
   }
@@ -164,10 +284,13 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     Emitter<InventoryState> emit,
   ) {
     final items = event.items.cast<InventoryItem>();
-    emit(state.loaded(
+    emit(state.copyWith(
+      status: InventoryStatus.streaming,
       items: items,
-      date: repository.inventoryDate,
-      streaming: true,
+      summary: InventorySummary.fromItems(items, repository.inventoryDate),
+      inventoryDate: repository.inventoryDate,
+      isStreaming: true,
+      currentOffset: items.length,
     ));
   }
 
@@ -179,32 +302,42 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     emit(state.error(event.message));
   }
 
-  /// Refresh data based on current mode
+  /// Refresh data based on current mode (reset to initial chunk)
   Future<void> _refreshData(Emitter<InventoryState> emit) async {
     if (_itemsSubscription != null) {
       // Re-subscribe with new filters
       await _itemsSubscription?.cancel();
       _itemsSubscription = repository
-          .watchFilteredItems(
+          .watchItemsChunked(
             tabType: state.selectedTab,
+            offset: 0,
+            limit: InventoryState.initialChunkSize,
             searchQuery: state.searchQuery.isEmpty ? null : state.searchQuery,
             filters: state.filters,
           )
           .listen(
-            (items) => add(ItemsUpdated(items)),
+            (result) => add(ItemsUpdated(result.items)),
             onError: (error) => add(InventoryError(error.toString())),
           );
     } else {
-      // Just reload once
+      // Just reload first chunk
       try {
-        final items = await repository.getFilteredItems(
+        final result = await repository.getItemsChunked(
           tabType: state.selectedTab,
+          offset: 0,
+          limit: InventoryState.initialChunkSize,
           searchQuery: state.searchQuery.isEmpty ? null : state.searchQuery,
           filters: state.filters,
         );
-        emit(state.loaded(
-          items: items,
-          date: repository.inventoryDate,
+
+        emit(state.copyWith(
+          status: InventoryStatus.loaded,
+          items: result.items,
+          hasMore: result.hasMore,
+          totalCount: result.totalCount,
+          currentOffset: result.items.length,
+          summary: InventorySummary.fromItems(result.items, repository.inventoryDate),
+          inventoryDate: repository.inventoryDate,
         ));
       } catch (e) {
         emit(state.error(e.toString()));

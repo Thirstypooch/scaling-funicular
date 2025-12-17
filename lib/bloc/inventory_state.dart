@@ -23,6 +23,17 @@ class InventoryState extends Equatable {
   final String inventoryDate;
   final bool isStreaming;
 
+  // Infinite scroll related fields
+  final bool hasMore;
+  final bool isLoadingMore;
+  final bool isRefreshing;
+  final int totalCount;
+  final int currentOffset;
+
+  // Chunk sizes for infinite scrolling
+  static const int initialChunkSize = 15;
+  static const int loadMoreChunkSize = 10;
+
   const InventoryState({
     this.status = InventoryStatus.initial,
     this.selectedTab = TabType.sku,
@@ -39,6 +50,11 @@ class InventoryState extends Equatable {
     this.errorMessage,
     this.inventoryDate = '',
     this.isStreaming = false,
+    this.hasMore = true,
+    this.isLoadingMore = false,
+    this.isRefreshing = false,
+    this.totalCount = 0,
+    this.currentOffset = 0,
   });
 
   /// Initial state
@@ -85,6 +101,11 @@ class InventoryState extends Equatable {
     String? errorMessage,
     String? inventoryDate,
     bool? isStreaming,
+    bool? hasMore,
+    bool? isLoadingMore,
+    bool? isRefreshing,
+    int? totalCount,
+    int? currentOffset,
   }) {
     return InventoryState(
       status: status ?? this.status,
@@ -97,6 +118,11 @@ class InventoryState extends Equatable {
       errorMessage: errorMessage,
       inventoryDate: inventoryDate ?? this.inventoryDate,
       isStreaming: isStreaming ?? this.isStreaming,
+      hasMore: hasMore ?? this.hasMore,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+      isRefreshing: isRefreshing ?? this.isRefreshing,
+      totalCount: totalCount ?? this.totalCount,
+      currentOffset: currentOffset ?? this.currentOffset,
     );
   }
 
@@ -112,5 +138,10 @@ class InventoryState extends Equatable {
         errorMessage,
         inventoryDate,
         isStreaming,
+        hasMore,
+        isLoadingMore,
+        isRefreshing,
+        totalCount,
+        currentOffset,
       ];
 }

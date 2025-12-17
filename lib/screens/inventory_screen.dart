@@ -177,12 +177,37 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 ),
                 const SizedBox(height: AppTheme.spacingL),
 
-                // Group header
+                // Group header with count
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
-                  child: Text(
-                    'Agrupado por ${state.selectedTab.groupLabel}',
-                    style: AppTheme.groupHeader,
+                  child: Row(
+                    children: [
+                      Text(
+                        'Agrupado por ${state.selectedTab.groupLabel}',
+                        style: AppTheme.groupHeader,
+                      ),
+                      const SizedBox(width: 8),
+                      if (state.status == InventoryStatus.loaded ||
+                          state.status == InventoryStatus.streaming)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '${state.items.length}${state.hasMore ? '+' : ''} de ${state.totalCount}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.primaryBlue,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: AppTheme.spacingM),
@@ -265,6 +290,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
         return InventoryList(
           items: state.items,
           tabType: state.selectedTab,
+          hasMore: state.hasMore,
+          isLoadingMore: state.isLoadingMore,
+          isRefreshing: state.isRefreshing,
+          onLoadMore: () {
+            context.read<InventoryBloc>().add(const LoadMoreItems());
+          },
+          onRefresh: () async {
+            context.read<InventoryBloc>().add(const RefreshInventory());
+            // Wait for the refresh to complete
+            await Future.delayed(const Duration(milliseconds: 800));
+          },
         );
     }
   }

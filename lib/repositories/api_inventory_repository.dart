@@ -110,6 +110,50 @@ class ApiInventoryRepository implements InventoryRepository {
     return FilterOptions.defaults;
   }
 
+  @override
+  Future<ChunkedResult<InventoryItem>> getItemsChunked({
+    required TabType tabType,
+    required int offset,
+    required int limit,
+    String? searchQuery,
+    Map<String, String>? filters,
+  }) async {
+    // TODO: Replace with actual API call with pagination
+    // Example:
+    // final queryParams = {
+    //   'tab': tabType.name,
+    //   'offset': offset.toString(),
+    //   'limit': limit.toString(),
+    //   if (searchQuery != null) 'search': searchQuery,
+    //   ...?filters,
+    // };
+    // final uri = Uri.parse('$baseUrl/inventory/chunked').replace(queryParameters: queryParams);
+    // final response = await http.get(uri);
+    // if (response.statusCode == 200) {
+    //   final json = jsonDecode(response.body);
+    //   return ChunkedResult(
+    //     items: (json['items'] as List).map((e) => InventoryItem.fromJson(e)).toList(),
+    //     hasMore: json['hasMore'],
+    //     totalCount: json['totalCount'],
+    //   );
+    // }
+
+    throw UnimplementedError('API not implemented. Use MockInventoryRepository for development.');
+  }
+
+  @override
+  Stream<ChunkedResult<InventoryItem>> watchItemsChunked({
+    required TabType tabType,
+    required int offset,
+    required int limit,
+    String? searchQuery,
+    Map<String, String>? filters,
+  }) {
+    // TODO: Implement real-time chunked watching via WebSocket or polling
+    // For now, throw unimplemented
+    throw UnimplementedError('API not implemented. Use MockInventoryRepository for development.');
+  }
+
   void _startPolling() {
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(pollInterval, (_) {

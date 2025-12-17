@@ -339,14 +339,188 @@ class MockData {
   static List<InventoryItem> getItemsForTab(TabType tabType) {
     switch (tabType) {
       case TabType.sku:
-        return skuItems;
+        return _generateExpandedSkuItems();
       case TabType.categoria:
-        return categoriaItems;
+        return _generateExpandedCategoriaItems();
       case TabType.subcategoria:
-        return subcategoriaItems;
+        return _generateExpandedSubcategoriaItems();
       case TabType.familia:
-        return familiaItems;
+        return _generateExpandedFamiliaItems();
     }
+  }
+
+  // Generate 50+ SKU items for infinite scroll demo
+  static List<InventoryItem> _generateExpandedSkuItems() {
+    final List<InventoryItem> expanded = [];
+    final baseItems = skuItems;
+
+    // Add original items
+    expanded.addAll(baseItems);
+
+    // Generate more items based on patterns
+    final names = [
+      'Trident Menta 18s',
+      'Bubbaloo Fresa 5g',
+      'Oreo Golden',
+      'Chips Ahoy Original',
+      'Clight Naranja',
+      'Trident Splash Menta',
+      'Chiclets Adams',
+      'Halls Menta',
+      'Tang Naranja',
+      'Philadelphia Original',
+      'Milka Oreo',
+      'Toblerone Dark',
+      'Cadbury Dairy Milk',
+      'Club Social Original',
+      'Belvita Breakfast',
+    ];
+
+    final categories = ['Gomas & Caramelos', 'Galletas', 'Bebidas & Postres', 'MISCELANEOS'];
+    final subcats = ['Gomas', 'Galletas', 'Bebidas', 'Miscelaneos'];
+    final familias = ['Trident', 'Oreo', 'Clight', 'Ritz', 'MISCELANEOS'];
+
+    for (int i = 0; i < 45; i++) {
+      final catIndex = i % categories.length;
+      final nameIndex = i % names.length;
+      expanded.add(InventoryItem(
+        id: '${76222000000000 + i * 1000}',
+        name: '${names[nameIndex]} X Display x ${(i % 12) + 6} un.',
+        categoria: categories[catIndex],
+        subcategoria: subcats[catIndex],
+        familia: familias[i % familias.length],
+        registros: 8 + (i % 8),
+        skus: 1,
+        inventory: 800 + (i * 47) % 2000,
+        sellIn: 400 + (i * 31) % 1500,
+        sellOut: 300 + (i * 23) % 1200,
+        initialInventory: 700 + (i * 41) % 1800,
+        position: baseItems.length + i + 1,
+        timestamp: '${10 + (i % 4)}:${(i * 5) % 60 < 10 ? '0' : ''}${(i * 5) % 60} ${i % 2 == 0 ? 'a' : 'p'}. m.',
+      ));
+    }
+
+    return expanded;
+  }
+
+  // Generate 20+ categoria items
+  static List<InventoryItem> _generateExpandedCategoriaItems() {
+    final List<InventoryItem> expanded = List.from(categoriaItems);
+
+    final extraCategories = [
+      'Chocolates',
+      'Snacks Salados',
+      'Cereales',
+      'Lácteos',
+      'Helados',
+      'Panadería',
+      'Confitería',
+      'Bebidas Energéticas',
+      'Productos Light',
+      'Importados',
+      'Productos Premium',
+      'Línea Infantil',
+      'Productos Dietéticos',
+      'Snacks Saludables',
+      'Línea Gourmet',
+    ];
+
+    for (int i = 0; i < extraCategories.length; i++) {
+      expanded.add(InventoryItem(
+        id: 'cat${categoriaItems.length + i + 1}',
+        name: extraCategories[i],
+        categoria: extraCategories[i],
+        registros: 10 + (i * 3) % 30,
+        skus: 2 + i % 5,
+        inventory: 2000 + (i * 500) % 5000,
+        sellIn: 1000 + (i * 300) % 3000,
+        sellOut: 800 + (i * 200) % 2500,
+        initialInventory: 1800 + (i * 400) % 4000,
+        position: categoriaItems.length + i + 1,
+        timestamp: '${11 + (i % 3)}:${(i * 7) % 60 < 10 ? '0' : ''}${(i * 7) % 60} p. m.',
+      ));
+    }
+
+    return expanded;
+  }
+
+  // Generate 15+ subcategoria items
+  static List<InventoryItem> _generateExpandedSubcategoriaItems() {
+    final List<InventoryItem> expanded = List.from(subcategoriaItems);
+
+    final extraSubcats = [
+      'Chocolates con Leche',
+      'Chocolates Oscuros',
+      'Papas Fritas',
+      'Nachos',
+      'Cereales Azucarados',
+      'Cereales Integrales',
+      'Yogures',
+      'Quesos',
+      'Helados de Crema',
+      'Paletas',
+      'Pan Dulce',
+      'Pan Integral',
+    ];
+
+    for (int i = 0; i < extraSubcats.length; i++) {
+      expanded.add(InventoryItem(
+        id: 'sub${subcategoriaItems.length + i + 1}',
+        name: extraSubcats[i],
+        subcategoria: extraSubcats[i],
+        registros: 8 + (i * 2) % 20,
+        skus: 1 + i % 4,
+        inventory: 1500 + (i * 400) % 4000,
+        sellIn: 800 + (i * 250) % 2500,
+        sellOut: 600 + (i * 180) % 2000,
+        initialInventory: 1400 + (i * 350) % 3500,
+        position: subcategoriaItems.length + i + 1,
+        timestamp: '${10 + (i % 4)}:${(i * 8) % 60 < 10 ? '0' : ''}${(i * 8) % 60} p. m.',
+      ));
+    }
+
+    return expanded;
+  }
+
+  // Generate 20+ familia items
+  static List<InventoryItem> _generateExpandedFamiliaItems() {
+    final List<InventoryItem> expanded = List.from(familiaItems);
+
+    final extraFamilias = [
+      'Milka',
+      'Toblerone',
+      'Cadbury',
+      'Chips Ahoy',
+      'Club Social',
+      'Belvita',
+      'Tang',
+      'Philadelphia',
+      'Halls',
+      'Chiclets',
+      'Bubbaloo',
+      'Dentyne',
+      'Stride',
+      'Lacta',
+      'Bis',
+    ];
+
+    for (int i = 0; i < extraFamilias.length; i++) {
+      expanded.add(InventoryItem(
+        id: 'fam${familiaItems.length + i + 1}',
+        name: extraFamilias[i],
+        familia: extraFamilias[i],
+        registros: 10 + (i * 2) % 25,
+        skus: 1 + i % 3,
+        inventory: 1800 + (i * 450) % 4500,
+        sellIn: 900 + (i * 280) % 2800,
+        sellOut: 700 + (i * 200) % 2200,
+        initialInventory: 1600 + (i * 380) % 4000,
+        position: familiaItems.length + i + 1,
+        timestamp: '${10 + (i % 5)}:${(i * 6) % 60 < 10 ? '0' : ''}${(i * 6) % 60} p. m.',
+      ));
+    }
+
+    return expanded;
   }
 
   static const int totalSellOut = 5602;
