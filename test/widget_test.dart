@@ -73,10 +73,17 @@ void main() {
     await tester.pumpWidget(const App());
     await tester.pumpAndSettle(const Duration(seconds: 3));
 
-    // Verify FAB is displayed
+    // Verify FAB icon is displayed (collapsed state)
+    expect(find.byIcon(Icons.add_rounded), findsOneWidget);
+
+    // Tap the FAB to expand it
+    await tester.tap(find.byIcon(Icons.add_rounded));
+    await tester.pumpAndSettle();
+
+    // Verify FAB is now expanded with text
     expect(find.text('Cargar inventario'), findsOneWidget);
 
-    // Tap the FAB to navigate
+    // Tap again to navigate
     await tester.tap(find.text('Cargar inventario'));
     await tester.pumpAndSettle(const Duration(seconds: 1));
 

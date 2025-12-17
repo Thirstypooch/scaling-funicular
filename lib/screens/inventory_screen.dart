@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/bloc.dart';
@@ -26,6 +27,9 @@ class InventoryScreen extends StatefulWidget {
 
 class _InventoryScreenState extends State<InventoryScreen> {
   final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
+  Timer? _fabCollapseTimer;
+  bool _isFabExpanded = false;
 
   @override
   void initState() {
@@ -42,8 +46,39 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _fabCollapseTimer?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(seconds: 1), () {
+      context.read<InventoryBloc>().add(UpdateSearch(value));
+    });
+  }
+
+  void _onFabPressed() {
+    if (_isFabExpanded) {
+      // Navigate when expanded
+      _fabCollapseTimer?.cancel();
+      _navigateToLoadScreen();
+      setState(() => _isFabExpanded = false);
+    } else {
+      // Expand the FAB
+      setState(() => _isFabExpanded = true);
+      _startFabCollapseTimer();
+    }
+  }
+
+  void _startFabCollapseTimer() {
+    _fabCollapseTimer?.cancel();
+    _fabCollapseTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() => _isFabExpanded = false);
+      }
+    });
   }
 
   void _navigateToLoadScreen() {
@@ -69,17 +104,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackground,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _navigateToLoadScreen,
-        backgroundColor: AppTheme.primaryBlue,
-        foregroundColor: Colors.white,
-        elevation: 4,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text(
-          'Cargar inventario',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
-      ),
+      floatingActionButton: _buildAnimatedFab(),
       body: SafeArea(
         child: BlocBuilder<InventoryBloc, InventoryState>(
           builder: (context, state) {
@@ -141,9 +166,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
                   child: SearchField(
                     controller: _searchController,
-                    onChanged: (value) {
-                      context.read<InventoryBloc>().add(UpdateSearch(value));
-                    },
+                    onChanged: _onSearchChanged,
                   ),
                 ),
                 const SizedBox(height: AppTheme.spacingM),
@@ -227,6 +250,60 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 
+  Widget _buildAnimatedFab() {
+    return GestureDetector(
+      onTap: _onFabPressed,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+        padding: EdgeInsets.symmetric(
+          horizontal: _isFabExpanded ? 20 : 16,
+          vertical: 16,
+        ),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryBlue,
+          borderRadius: BorderRadius.circular(_isFabExpanded ? 28 : 28),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.primaryBlue.withValues(alpha: 0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.add_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              child: _isFabExpanded
+                  ? Row(
+                      children: [
+                        const SizedBox(width: 8),
+                        Text(
+                          'Cargar inventario',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildContent(InventoryState state) {
     switch (state.status) {
       case InventoryStatus.initial:
@@ -293,6 +370,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           hasMore: state.hasMore,
           isLoadingMore: state.isLoadingMore,
           isRefreshing: state.isRefreshing,
+          searchQuery: state.searchQuery,
           onLoadMore: () {
             context.read<InventoryBloc>().add(const LoadMoreItems());
           },
@@ -300,6 +378,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
             context.read<InventoryBloc>().add(const RefreshInventory());
             // Wait for the refresh to complete
             await Future.delayed(const Duration(milliseconds: 800));
+          },
+          onSwitchTab: (tab) {
+            context.read<InventoryBloc>().add(ChangeTab(tab));
           },
         );
     }

@@ -84,7 +84,7 @@ class MockInventoryRepository implements InventoryRepository {
     Map<String, String>? filters,
   }) async {
     // Simulate network delay (longer for subsequent chunks to feel realistic)
-    await Future.delayed(Duration(milliseconds: offset == 0 ? 300 : 500));
+    // await Future.delayed(Duration(milliseconds: offset == 0 ? 300 : 500));
 
     // Get all filtered items first
     final allItems = _applyFilters(
@@ -151,8 +151,25 @@ class MockInventoryRepository implements InventoryRepository {
     if (searchQuery != null && searchQuery.isNotEmpty) {
       final query = searchQuery.toLowerCase();
       result = result.where((item) {
+        // Always search in the display title for current tab
         final title = item.getDisplayTitle(tabType).toLowerCase();
         final id = item.id.toLowerCase();
+
+        // For non-SKU tabs, also search within product name and all groupings
+        if (tabType != TabType.sku) {
+          final name = item.name.toLowerCase();
+          final categoria = (item.categoria ?? '').toLowerCase();
+          final subcategoria = (item.subcategoria ?? '').toLowerCase();
+          final familia = (item.familia ?? '').toLowerCase();
+
+          return title.contains(query) ||
+                 id.contains(query) ||
+                 name.contains(query) ||
+                 categoria.contains(query) ||
+                 subcategoria.contains(query) ||
+                 familia.contains(query);
+        }
+
         return title.contains(query) || id.contains(query);
       }).toList();
     }

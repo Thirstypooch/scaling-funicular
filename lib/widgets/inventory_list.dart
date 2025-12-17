@@ -11,8 +11,10 @@ class InventoryList extends StatefulWidget {
   final bool hasMore;
   final bool isLoadingMore;
   final bool isRefreshing;
+  final String searchQuery;
   final VoidCallback? onLoadMore;
   final Future<void> Function()? onRefresh;
+  final void Function(TabType)? onSwitchTab;
 
   const InventoryList({
     super.key,
@@ -21,8 +23,10 @@ class InventoryList extends StatefulWidget {
     this.hasMore = false,
     this.isLoadingMore = false,
     this.isRefreshing = false,
+    this.searchQuery = '',
     this.onLoadMore,
     this.onRefresh,
+    this.onSwitchTab,
   });
 
   @override
@@ -81,31 +85,7 @@ class _InventoryListState extends State<InventoryList> {
   @override
   Widget build(BuildContext context) {
     if (widget.items.isEmpty && !widget.isLoadingMore) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              'No se encontraron resultados',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
-              ),
-            ),
-            if (widget.onRefresh != null) ...[
-              const SizedBox(height: 16),
-              TextButton.icon(
-                onPressed: () => widget.onRefresh?.call(),
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Actualizar'),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppTheme.primaryBlue,
-                ),
-              ),
-            ],
-          ],
-        ),
-      );
+      return _buildEmptyState();
     }
 
     final listView = ListView.builder(
@@ -179,6 +159,63 @@ class _InventoryListState extends State<InventoryList> {
                 fontSize: 12,
                 color: AppTheme.textGray,
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    final hasSearch = widget.searchQuery.isNotEmpty;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Icon
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                hasSearch ? Icons.search_off_rounded : Icons.inventory_2_outlined,
+                size: 36,
+                color: AppTheme.primaryBlue.withValues(alpha: 0.6),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Title
+            Text(
+              hasSearch
+                  ? 'Sin resultados para "${widget.searchQuery}"'
+                  : 'No hay datos disponibles',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textGrayDark,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+
+            // Subtitle
+            Text(
+              hasSearch
+                  ? 'No se encontraron resultados que coincidan con tu búsqueda. Verifica el texto o intenta con otros términos.'
+                  : 'No hay información de inventario para mostrar en este momento.',
+              style: TextStyle(
+                fontSize: 13,
+                color: AppTheme.textGray,
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),

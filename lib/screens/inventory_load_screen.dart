@@ -4,6 +4,7 @@ import '../theme/app_theme.dart';
 import '../widgets/client_info_card.dart';
 import '../widgets/inventory_load_item_card.dart';
 import '../widgets/inventory_detail_modal.dart';
+import '../widgets/custom_pull_to_refresh.dart';
 
 class InventoryLoadScreen extends StatefulWidget {
   const InventoryLoadScreen({super.key});
@@ -17,16 +18,132 @@ class _InventoryLoadScreenState extends State<InventoryLoadScreen> {
   final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
   final ScrollController _scrollController = ScrollController();
 
+  // Pagination state
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
+  int _currentPage = 1;
+  static const int _pageSize = 5;
+  int _totalAvailable = 25; // Simulated total items available
+
   @override
   void initState() {
     super.initState();
     _items = List.from(MockInventoryLoadData.items);
+    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      _loadMoreItems();
+    }
+  }
+
+  Future<void> _loadMoreItems() async {
+    if (_isLoadingMore || !_hasMore) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    // Simulate API delay
+    await Future.delayed(const Duration(milliseconds: 800));
+
+    if (!mounted) return;
+
+    // Generate more mock items
+    final newItems = _generateMoreItems(_currentPage);
+
+    setState(() {
+      _currentPage++;
+      _hasMore = _items.length + newItems.length < _totalAvailable;
+      _isLoadingMore = false;
+    });
+
+    // Add items with animation
+    for (var i = 0; i < newItems.length; i++) {
+      await Future.delayed(const Duration(milliseconds: 50));
+      if (!mounted) return;
+      final index = _items.length;
+      _items.add(newItems[i]);
+      _listKey.currentState?.insertItem(index, duration: const Duration(milliseconds: 300));
+    }
+  }
+
+  Future<void> _refreshItems() async {
+    // Simulate API delay
+    await Future.delayed(const Duration(milliseconds: 1000));
+
+    if (!mounted) return;
+
+    // Reset pagination
+    setState(() {
+      _currentPage = 1;
+      _hasMore = true;
+      _totalAvailable = 25;
+    });
+
+    // Clear and reload items with animation
+    final oldLength = _items.length;
+    for (var i = oldLength - 1; i >= 0; i--) {
+      final item = _items[i];
+      _items.removeAt(i);
+      _listKey.currentState?.removeItem(
+        i,
+        (context, animation) => _buildAnimatedItem(item, animation, i),
+        duration: const Duration(milliseconds: 150),
+      );
+    }
+
+    await Future.delayed(const Duration(milliseconds: 200));
+    if (!mounted) return;
+
+    // Add fresh items
+    final freshItems = List<InventoryLoadItem>.from(MockInventoryLoadData.items);
+    for (var i = 0; i < freshItems.length; i++) {
+      await Future.delayed(const Duration(milliseconds: 50));
+      if (!mounted) return;
+      _items.add(freshItems[i]);
+      _listKey.currentState?.insertItem(_items.length - 1, duration: const Duration(milliseconds: 300));
+    }
+  }
+
+  List<InventoryLoadItem> _generateMoreItems(int page) {
+    final baseItems = [
+      ('BUBBALOO FRESA 50X5G', 'Bubbaloo', 'Bubbaloo Relleno'),
+      ('CLORETS MENTA 60X2.5G', 'Clorets', 'Clorets Menta'),
+      ('TRIDENT SPLASH FRESA 24X9G', 'Trident', 'Trident Splash'),
+      ('HALLS MENTA 20X25G', 'Halls', 'Halls Menta'),
+      ('SPARKIES FRESA 100X3G', 'Sparkies', 'Sparkies Frutal'),
+    ];
+
+    final startId = 100 + (page * _pageSize);
+    final items = <InventoryLoadItem>[];
+
+    for (var i = 0; i < _pageSize && _items.length + items.length < _totalAvailable; i++) {
+      final baseItem = baseItems[i % baseItems.length];
+      items.add(InventoryLoadItem(
+        id: '${startId + i}',
+        sku: '00000${startId + i}',
+        name: baseItem.$1,
+        categoria: 'Gomas & Caramelos',
+        subcategoria: 'Gomas',
+        familia: baseItem.$2,
+        subfamilia: baseItem.$3,
+        cajas: 10 + (i * 2),
+        unidades: 200 + (i * 50),
+        isLoaded: true,
+      ));
+    }
+
+    return items;
   }
 
   void _addItem(InventoryLoadItem item) {
@@ -202,15 +319,15 @@ class _InventoryLoadScreenState extends State<InventoryLoadScreen> {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: AppTheme.primaryBlue,
+                            color: AppTheme.primaryBlue.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
-                            '${_items.length}',
-                            style: const TextStyle(
-                              fontSize: 12,
+                            '${_items.length}${_hasMore ? '+' : ''} de $_totalAvailable',
+                            style: TextStyle(
+                              fontSize: 11,
                               fontWeight: FontWeight.w600,
-                              color: Colors.white,
+                              color: AppTheme.primaryBlue,
                             ),
                           ),
                         ),
@@ -218,17 +335,32 @@ class _InventoryLoadScreenState extends State<InventoryLoadScreen> {
                     ),
                     const SizedBox(height: AppTheme.spacingM),
 
-                    // Items list
+                    // Items list with pull-to-refresh
                     Expanded(
-                      child: AnimatedList(
-                        key: _listKey,
-                        controller: _scrollController,
-                        initialItemCount: _items.length,
-                        itemBuilder: (context, index, animation) {
-                          return _buildAnimatedItem(_items[index], animation, index);
-                        },
+                      child: CustomPullToRefresh(
+                        onRefresh: _refreshItems,
+                        scrollController: _scrollController,
+                        child: AnimatedList(
+                          key: _listKey,
+                          controller: _scrollController,
+                          physics: const AlwaysScrollableScrollPhysics(
+                            parent: BouncingScrollPhysics(),
+                          ),
+                          initialItemCount: _items.length,
+                          itemBuilder: (context, index, animation) {
+                            // Show loading indicator after last item
+                            if (index == _items.length) {
+                              return _buildLoadingIndicator();
+                            }
+                            return _buildAnimatedItem(_items[index], animation, index);
+                          },
+                        ),
                       ),
                     ),
+
+                    // Loading more indicator
+                    if (_isLoadingMore)
+                      _buildLoadingIndicator(),
                   ],
                 ),
               ),
@@ -379,6 +511,35 @@ class _InventoryLoadScreenState extends State<InventoryLoadScreen> {
           onEdit: () => _showEditDialog(index),
           onDelete: () => _showDeleteConfirmation(index),
         ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingIndicator() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                AppTheme.primaryBlue.withValues(alpha: 0.7),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'Cargando más...',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppTheme.textGray,
+            ),
+          ),
+        ],
       ),
     );
   }
