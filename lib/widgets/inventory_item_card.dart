@@ -6,11 +6,13 @@ import '../theme/app_theme.dart';
 class InventoryItemCard extends StatefulWidget {
   final InventoryItem item;
   final TabType tabType;
+  final VoidCallback? onTap;
 
   const InventoryItemCard({
     super.key,
     required this.item,
     required this.tabType,
+    this.onTap,
   });
 
   @override
@@ -57,6 +59,7 @@ class _InventoryItemCardState extends State<InventoryItemCard>
 
   void _onTapUp(TapUpDetails details) {
     _controller.reverse();
+    widget.onTap?.call();
   }
 
   void _onTapCancel() {

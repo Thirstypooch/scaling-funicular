@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/inventory_item.dart';
 import '../models/tab_type.dart';
 import '../theme/app_theme.dart';
+import '../screens/inventory_drilldown_screen.dart';
 import 'inventory_item_card.dart';
 import 'custom_pull_to_refresh.dart';
 
@@ -82,6 +83,31 @@ class _InventoryListState extends State<InventoryList> {
     }
   }
 
+  void _navigateToDrilldown(InventoryItem item) {
+    // Only navigate for non-SKU tabs (drill down to see SKUs)
+    if (widget.tabType == TabType.sku) return;
+
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            InventoryDrilldownScreen(
+          parentItem: item,
+          parentTabType: widget.tabType,
+        ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(1.0, 0.0);
+          const end = Offset.zero;
+          const curve = Curves.easeInOutCubic;
+          var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          var offsetAnimation = animation.drive(tween);
+          return SlideTransition(position: offsetAnimation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 300),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.items.isEmpty && !widget.isLoadingMore) {
@@ -118,6 +144,7 @@ class _InventoryListState extends State<InventoryList> {
           child: InventoryItemCard(
             item: widget.items[index],
             tabType: widget.tabType,
+            onTap: () => _navigateToDrilldown(widget.items[index]),
           ),
         );
       },
