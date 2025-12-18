@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'bloc/bloc.dart';
 import 'repositories/inventory_repository.dart';
-import 'repositories/mock_inventory_repository.dart';
+import 'repositories/api_inventory_repository.dart';
 import 'screens/inventory_screen.dart';
 import 'theme/app_theme.dart';
 
 class App extends StatelessWidget {
   /// The repository to use for data
-  /// Defaults to MockInventoryRepository
+  /// Defaults to ApiInventoryRepository (uses real API)
   final InventoryRepository? repository;
 
   /// Whether to use streaming (real-time updates) or one-time loading
@@ -35,7 +35,7 @@ class App extends StatelessWidget {
         fontFamily: 'Roboto',
       ),
       home: RepositoryProvider<InventoryRepository>(
-        create: (_) => repository ?? MockInventoryRepository(),
+        create: (_) => repository ?? ApiInventoryRepository(),
         child: BlocProvider(
           create: (context) => InventoryBloc(
             repository: context.read<InventoryRepository>(),
