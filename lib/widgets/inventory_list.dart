@@ -114,17 +114,23 @@ class _InventoryListState extends State<InventoryList> {
       return _buildEmptyState();
     }
 
+    // Always show footer (loading indicator or end message)
     final listView = ListView.builder(
       controller: _scrollController,
       physics: const AlwaysScrollableScrollPhysics(
         parent: BouncingScrollPhysics(),
       ),
       padding: EdgeInsets.zero,
-      itemCount: widget.items.length + (widget.hasMore ? 1 : 0),
+      itemCount: widget.items.length + 1,
       itemBuilder: (context, index) {
-        // Show loading indicator at the bottom
+        // Show footer at the end
         if (index == widget.items.length) {
-          return _buildLoadingIndicator();
+          if (widget.isLoadingMore) {
+            return _buildLoadingIndicator();
+          } else if (!widget.hasMore && widget.items.isNotEmpty) {
+            return _buildEndMessage();
+          }
+          return const SizedBox.shrink();
         }
 
         return TweenAnimationBuilder<double>(
@@ -166,25 +172,51 @@ class _InventoryListState extends State<InventoryList> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 20),
       child: Center(
-        child: Column(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
-              width: 24,
-              height: 24,
+              width: 18,
+              height: 18,
               child: CircularProgressIndicator(
-                strokeWidth: 2.5,
+                strokeWidth: 2,
                 valueColor: AlwaysStoppedAnimation<Color>(
                   AppTheme.primaryBlue.withValues(alpha: 0.7),
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(width: 10),
             Text(
               'Cargando más...',
               style: TextStyle(
                 fontSize: 12,
                 color: AppTheme.textGray,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEndMessage() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: Center(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.check_circle_outline_rounded,
+              size: 16,
+              color: AppTheme.textGray.withValues(alpha: 0.6),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Has visto todos los resultados',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppTheme.textGray.withValues(alpha: 0.8),
               ),
             ),
           ],

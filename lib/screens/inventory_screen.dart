@@ -10,6 +10,7 @@ import '../widgets/filter_dropdown_row.dart';
 import '../widgets/summary_cards_row.dart';
 import '../widgets/inventory_list.dart';
 import 'inventory_load_screen.dart';
+import 'client_catalog_screen.dart';
 
 class InventoryScreen extends StatefulWidget {
   /// If true, uses StreamBuilder for real-time updates
@@ -100,6 +101,61 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 
+  void _navigateToClientCatalog() {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const ClientCatalogScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(1.0, 0.0);
+          const end = Offset.zero;
+          const curve = Curves.easeInOutCubic;
+          var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          var offsetAnimation = animation.drive(tween);
+          return SlideTransition(position: offsetAnimation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 300),
+      ),
+    );
+  }
+
+  Widget _buildHeaderAction({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: AppTheme.primaryBlue,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.primaryBlue,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -150,9 +206,41 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     ),
                   ),
 
+                // Header with title and actions
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppTheme.spacingL,
+                    AppTheme.spacingL,
+                    AppTheme.spacingL,
+                    AppTheme.spacingS,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Inventario',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textGrayDark,
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          _buildHeaderAction(
+                            icon: Icons.people_outline_rounded,
+                            label: 'Clientes',
+                            onTap: _navigateToClientCatalog,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
                 // Tab bar
                 Padding(
-                  padding: const EdgeInsets.all(AppTheme.spacingL),
+                  padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
                   child: SegmentedTabBar(
                     selectedTab: state.selectedTab,
                     onTabSelected: (tab) {
@@ -160,6 +248,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     },
                   ),
                 ),
+                const SizedBox(height: AppTheme.spacingM),
 
                 // Search field
                 Padding(
@@ -200,29 +289,34 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 ),
                 const SizedBox(height: AppTheme.spacingL),
 
-                // Group header with count
+                // Group header - contextual based on search
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
                   child: Row(
                     children: [
-                      Text(
-                        'Agrupado por ${state.selectedTab.groupLabel}',
-                        style: AppTheme.groupHeader,
+                      Flexible(
+                        child: Text(
+                          state.searchQuery.isNotEmpty
+                              ? 'Resultados para "${state.searchQuery}"'
+                              : 'Agrupado por ${state.selectedTab.groupLabel}',
+                          style: AppTheme.groupHeader,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      const SizedBox(width: 8),
                       if (state.status == InventoryStatus.loaded ||
-                          state.status == InventoryStatus.streaming)
+                          state.status == InventoryStatus.streaming) ...[
+                        const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
-                            vertical: 2,
+                            vertical: 4,
                           ),
                           decoration: BoxDecoration(
                             color: AppTheme.primaryBlue.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
-                            '${state.items.length}${state.hasMore ? '+' : ''} de ${state.totalCount}',
+                            '${state.totalCount}',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
@@ -230,6 +324,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             ),
                           ),
                         ),
+                      ],
                     ],
                   ),
                 ),
