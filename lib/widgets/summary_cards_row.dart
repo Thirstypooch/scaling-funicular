@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
-import 'summary_card.dart';
+import 'animated_kpi_card.dart';
 
 class SummaryCardsRow extends StatelessWidget {
   final int sellOut;
@@ -9,6 +9,9 @@ class SummaryCardsRow extends StatelessWidget {
   final int registros;
   final int skus;
   final String date;
+  final int? previousSellOut;
+  final int? previousInventory;
+  final int? previousSellIn;
 
   const SummaryCardsRow({
     super.key,
@@ -18,54 +21,76 @@ class SummaryCardsRow extends StatelessWidget {
     required this.registros,
     required this.skus,
     required this.date,
+    this.previousSellOut,
+    this.previousInventory,
+    this.previousSellIn,
   });
 
-  String _formatNumber(int number) {
-    if (number >= 1000) {
-      final formatted = number.toString();
-      final buffer = StringBuffer();
-      for (int i = 0; i < formatted.length; i++) {
-        if (i > 0 && (formatted.length - i) % 3 == 0) {
-          buffer.write(',');
-        }
-        buffer.write(formatted[i]);
-      }
-      return buffer.toString();
-    }
-    return number.toString();
+  // Generate sample sparkline data based on current value
+  List<double> _generateSparklineData(int currentValue, {bool trending = true}) {
+    final base = currentValue.toDouble();
+    final variance = base * 0.15;
+
+    // Generate 7 data points (last 7 days)
+    return List.generate(7, (index) {
+      if (index == 6) return base; // Current value is last point
+
+      final factor = trending
+          ? 0.7 + (index * 0.05) // Trending up
+          : 1.0 - (index * 0.02) + (index.isEven ? 0.05 : -0.05); // Fluctuating
+
+      return (base * factor) + (variance * (index.isEven ? 0.5 : -0.3));
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
+        // SellOut Card
         Expanded(
-          child: SummaryCard(
-            title: 'SellOut total (unid.)',
-            value: _formatNumber(sellOut),
+          child: AnimatedKpiCard(
+            title: 'SellOut total',
+            value: sellOut,
+            previousValue: previousSellOut,
             subtitle: 'Registros: $registros',
             icon: Icons.trending_up_rounded,
-            iconColor: const Color(0xFF16A34A), // Green
+            primaryColor: const Color(0xFF10B981), // Emerald
+            secondaryColor: const Color(0xFF059669),
+            animationDelay: 0,
+            sparklineData: _generateSparklineData(sellOut, trending: true),
           ),
         ),
         const SizedBox(width: AppTheme.spacingS),
+
+        // Inventory Card
         Expanded(
-          child: SummaryCard(
-            title: 'Inventario final (unid.)',
-            value: _formatNumber(inventory),
+          child: AnimatedKpiCard(
+            title: 'Inventario',
+            value: inventory,
+            previousValue: previousInventory,
             subtitle: date,
-            icon: Icons.inventory_rounded,
-            iconColor: const Color(0xFF0EA5E9), // Blue
+            icon: Icons.inventory_2_rounded,
+            primaryColor: const Color(0xFF3B82F6), // Blue
+            secondaryColor: const Color(0xFF2563EB),
+            animationDelay: 150,
+            sparklineData: _generateSparklineData(inventory, trending: false),
           ),
         ),
         const SizedBox(width: AppTheme.spacingS),
+
+        // SellIn Card
         Expanded(
-          child: SummaryCard(
-            title: 'SellIn total (unid.)',
-            value: _formatNumber(sellIn),
-            subtitle: 'SKUs distintos: $skus',
+          child: AnimatedKpiCard(
+            title: 'SellIn total',
+            value: sellIn,
+            previousValue: previousSellIn,
+            subtitle: 'SKUs: $skus',
             icon: Icons.shopping_cart_rounded,
-            iconColor: const Color(0xFF8B5CF6), // Purple
+            primaryColor: const Color(0xFF8B5CF6), // Purple
+            secondaryColor: const Color(0xFF7C3AED),
+            animationDelay: 300,
+            sparklineData: _generateSparklineData(sellIn, trending: true),
           ),
         ),
       ],

@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/product_card.dart';
 import '../widgets/custom_pull_to_refresh.dart';
+import '../widgets/inventory_detail_modal.dart';
 
 class ProductCatalogScreen extends StatefulWidget {
   const ProductCatalogScreen({super.key});
@@ -131,19 +132,24 @@ class _ProductCatalogScreenState extends State<ProductCatalogScreen> {
   }
 
   Future<void> _onRefresh() async {
+    if (!mounted) return;
     setState(() => _isRefreshing = true);
     await _loadProducts();
-    setState(() => _isRefreshing = false);
+    if (mounted) {
+      setState(() => _isRefreshing = false);
+    }
   }
 
   void _onSearchChanged(String value) {
     _searchDebounce?.cancel();
     _searchDebounce = Timer(const Duration(seconds: 1), () {
-      setState(() {
-        _searchQuery = value;
-        _currentPage = 0;
-        _applyFiltersAndPaginate();
-      });
+      if (mounted) {
+        setState(() {
+          _searchQuery = value;
+          _currentPage = 0;
+          _applyFiltersAndPaginate();
+        });
+      }
     });
   }
 
@@ -161,6 +167,7 @@ class _ProductCatalogScreenState extends State<ProductCatalogScreen> {
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBackground,
       appBar: _buildAppBar(),
+      floatingActionButton: _buildFab(),
       body: Column(
         children: [
           _buildSearchBar(),
@@ -169,6 +176,28 @@ class _ProductCatalogScreenState extends State<ProductCatalogScreen> {
             child: _buildBody(),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFab() {
+    return FloatingActionButton.extended(
+      onPressed: () {
+        showInventoryDetailModal(
+          context,
+          onSave: (item) {
+            // Optionally refresh or show feedback
+          },
+        );
+      },
+      backgroundColor: AppTheme.primaryBlue,
+      icon: const Icon(Icons.add_rounded, color: Colors.white),
+      label: const Text(
+        'Cargar inventario',
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

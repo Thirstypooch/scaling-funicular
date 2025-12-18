@@ -130,19 +130,24 @@ class _ClientCatalogScreenState extends State<ClientCatalogScreen> {
   }
 
   Future<void> _onRefresh() async {
+    if (!mounted) return;
     setState(() => _isRefreshing = true);
     await _loadClients();
-    setState(() => _isRefreshing = false);
+    if (mounted) {
+      setState(() => _isRefreshing = false);
+    }
   }
 
   void _onSearchChanged(String value) {
     _searchDebounce?.cancel();
     _searchDebounce = Timer(const Duration(seconds: 1), () {
-      setState(() {
-        _searchQuery = value;
-        _currentPage = 0;
-        _applyFiltersAndPaginate();
-      });
+      if (mounted) {
+        setState(() {
+          _searchQuery = value;
+          _currentPage = 0;
+          _applyFiltersAndPaginate();
+        });
+      }
     });
   }
 

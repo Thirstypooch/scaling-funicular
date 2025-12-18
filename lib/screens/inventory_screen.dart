@@ -9,7 +9,7 @@ import '../widgets/search_field.dart';
 import '../widgets/filter_dropdown_row.dart';
 import '../widgets/summary_cards_row.dart';
 import '../widgets/inventory_list.dart';
-import 'inventory_load_screen.dart';
+import '../widgets/inventory_detail_modal.dart';
 import 'client_catalog_screen.dart';
 import 'product_catalog_screen.dart';
 
@@ -84,21 +84,16 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   void _navigateToLoadScreen() {
-    Navigator.push(
+    showInventoryDetailModal(
       context,
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            const InventoryLoadScreen(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          const begin = Offset(1.0, 0.0);
-          const end = Offset.zero;
-          const curve = Curves.easeInOutCubic;
-          var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-          var offsetAnimation = animation.drive(tween);
-          return SlideTransition(position: offsetAnimation, child: child);
-        },
-        transitionDuration: const Duration(milliseconds: 300),
-      ),
+      onSave: (item) {
+        // Refresh inventory after saving
+        if (widget.useStreaming) {
+          context.read<InventoryBloc>().add(const SubscribeToInventory());
+        } else {
+          context.read<InventoryBloc>().add(const RefreshInventory());
+        }
+      },
     );
   }
 

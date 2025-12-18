@@ -1,15 +1,13 @@
 import 'dart:async';
-import 'dart:math';
 import '../models/inventory_item.dart';
 import '../models/tab_type.dart';
 import '../services/api_service.dart';
 import 'inventory_repository.dart';
 
 /// API-based implementation of InventoryRepository
-/// Uses real API for inventory data but fills in dummy values for sellIn, sellOut, etc.
+/// Uses real API for inventory data with calculated KPIs from historical data
 class ApiInventoryRepository implements InventoryRepository {
   final ApiService _apiService;
-  final Random _random = Random();
 
   // Cache for converted items
   List<InventoryItem>? _cachedItems;
@@ -18,6 +16,9 @@ class ApiInventoryRepository implements InventoryRepository {
 
   // Simulate periodic data updates
   static const Duration _updateInterval = Duration(seconds: 30);
+
+  // Cached KPI data
+  _KpiData? _cachedKpiData;
 
   ApiInventoryRepository({ApiService? apiService})
       : _apiService = apiService ?? ApiService();
@@ -40,10 +41,17 @@ class ApiInventoryRepository implements InventoryRepository {
 
     try {
       final response = await _apiService.getInventoryCatalog();
-      final items = response.data.asMap().entries.map((entry) {
+      final allApiItems = response.data;
+
+      // Calculate KPIs from historical data
+      _cachedKpiData = _calculateKpis(allApiItems);
+
+      // Convert items (filter to today's or most recent date)
+      final todayItems = _filterToCurrentDate(allApiItems);
+      final items = todayItems.asMap().entries.map((entry) {
         final index = entry.key;
         final apiItem = entry.value;
-        return _convertToInventoryItem(apiItem, index);
+        return _convertToInventoryItem(apiItem, index, _cachedKpiData!);
       }).toList();
 
       _cachedItems = items;
@@ -59,24 +67,121 @@ class ApiInventoryRepository implements InventoryRepository {
     }
   }
 
-  InventoryItem _convertToInventoryItem(InventoryApiItem apiItem, int index) {
-    // Generate dummy metrics based on existencia_unidades
-    final baseInventory = apiItem.existenciaUnidades;
-    final sellIn = _generateDummyMetric(baseInventory, 0.6, 1.2);
-    final sellOut = _generateDummyMetric(baseInventory, 0.4, 0.9);
-    final initialInventory = _generateDummyMetric(baseInventory, 0.8, 1.3);
-    final registros = 5 + _random.nextInt(20);
-    final skus = 1 + _random.nextInt(5);
+  /// Calculate KPIs by comparing inventory across dates
+  _KpiData _calculateKpis(List<InventoryApiItem> allItems) {
+    // Group items by date
+    final Map<String, List<InventoryApiItem>> byDate = {};
+    for (final item in allItems) {
+      byDate.putIfAbsent(item.fechaRegistro, () => []).add(item);
+    }
+
+    // Sort dates to get today and yesterday
+    final sortedDates = byDate.keys.toList()..sort();
+
+    if (sortedDates.isEmpty) {
+      return _KpiData.empty();
+    }
+
+    final currentDate = sortedDates.last;
+    final currentItems = byDate[currentDate]!;
+
+    // Calculate current totals
+    final currentInventory = currentItems.fold<int>(
+      0, (sum, item) => sum + item.existenciaUnidades + item.existenciaCajas,
+    );
+    final currentRegistros = currentItems.length;
+    final currentSkus = currentItems.map((i) => '${i.categoria}_${i.familia}').toSet().length;
+
+    // Find previous date for comparison
+    int previousInventory = 0;
+    String? previousDate;
+
+    if (sortedDates.length > 1) {
+      previousDate = sortedDates[sortedDates.length - 2];
+      final previousItems = byDate[previousDate]!;
+      previousInventory = previousItems.fold<int>(
+        0, (sum, item) => sum + item.existenciaUnidades + item.existenciaCajas,
+      );
+    }
+
+    // Calculate SellIn and SellOut based on inventory delta
+    final delta = currentInventory - previousInventory;
+    int sellIn = 0;
+    int sellOut = 0;
+
+    if (delta > 0) {
+      // Inventory increased = SellIn (restocking)
+      sellIn = delta;
+    } else if (delta < 0) {
+      // Inventory decreased = SellOut (sales)
+      sellOut = delta.abs();
+    }
+
+    // Calculate per-item deltas for more granular KPIs
+    final Map<String, int> itemDeltas = {};
+    if (previousDate != null) {
+      final previousItems = byDate[previousDate]!;
+      final previousMap = <String, int>{};
+      for (final item in previousItems) {
+        final key = '${item.categoria}_${item.familia}_${item.subfamilia}';
+        previousMap[key] = (previousMap[key] ?? 0) + item.existenciaUnidades;
+      }
+
+      for (final item in currentItems) {
+        final key = '${item.categoria}_${item.familia}_${item.subfamilia}';
+        final prev = previousMap[key] ?? 0;
+        final current = item.existenciaUnidades;
+        itemDeltas[key] = current - prev;
+      }
+    }
+
+    return _KpiData(
+      totalInventory: currentInventory,
+      totalSellIn: sellIn,
+      totalSellOut: sellOut,
+      totalRegistros: currentRegistros,
+      totalSkus: currentSkus,
+      currentDate: currentDate,
+      previousDate: previousDate,
+      itemDeltas: itemDeltas,
+    );
+  }
+
+  /// Filter to current date items (or most recent if no today's data)
+  List<InventoryApiItem> _filterToCurrentDate(List<InventoryApiItem> items) {
+    if (items.isEmpty) return [];
+
+    // Get all dates and find the most recent
+    final dates = items.map((i) => i.fechaRegistro).toSet().toList()..sort();
+    final mostRecentDate = dates.last;
+
+    return items.where((i) => i.fechaRegistro == mostRecentDate).toList();
+  }
+
+  InventoryItem _convertToInventoryItem(
+    InventoryApiItem apiItem,
+    int index,
+    _KpiData kpiData,
+  ) {
+    final baseInventory = apiItem.existenciaUnidades + apiItem.existenciaCajas;
+
+    // Get item-specific delta for SellIn/SellOut
+    final key = '${apiItem.categoria}_${apiItem.familia}_${apiItem.subfamilia}';
+    final itemDelta = kpiData.itemDeltas[key] ?? 0;
+
+    final sellIn = itemDelta > 0 ? itemDelta : 0;
+    final sellOut = itemDelta < 0 ? itemDelta.abs() : 0;
+    final initialInventory = baseInventory - sellIn + sellOut;
 
     return InventoryItem(
       id: apiItem.id,
-      name: apiItem.producto ?? 'Producto ${apiItem.id}',
+      name: apiItem.producto ?? _generateProductName(apiItem),
       categoria: apiItem.categoria.isNotEmpty ? apiItem.categoria : null,
       subcategoria: apiItem.subcategoria.isNotEmpty ? apiItem.subcategoria : null,
       familia: apiItem.familia.isNotEmpty ? apiItem.familia : null,
       subfamilia: apiItem.subfamilia.isNotEmpty ? apiItem.subfamilia : null,
-      registros: registros,
-      skus: skus,
+      registros: 1,
+      skus: 1,
       inventory: baseInventory,
       sellIn: sellIn,
       sellOut: sellOut,
@@ -87,21 +192,23 @@ class ApiInventoryRepository implements InventoryRepository {
     );
   }
 
-  int _generateDummyMetric(int base, double minFactor, double maxFactor) {
-    final factor = minFactor + _random.nextDouble() * (maxFactor - minFactor);
-    return (base * factor).round();
+  String _generateProductName(InventoryApiItem apiItem) {
+    if (apiItem.familia.isNotEmpty) {
+      return apiItem.familia;
+    } else if (apiItem.categoria.isNotEmpty) {
+      return apiItem.categoria;
+    }
+    return 'Producto ${apiItem.id}';
   }
 
   String _formatTimestamp(String dateStr) {
     try {
-      final parts = dateStr.split('-');
-      if (parts.length == 3) {
-        final hour = 8 + _random.nextInt(10);
-        final minute = _random.nextInt(60);
-        final period = hour >= 12 ? 'p' : 'a';
-        final displayHour = hour > 12 ? hour - 12 : hour;
-        return '$displayHour:${minute.toString().padLeft(2, '0')} $period. m.';
-      }
+      final now = DateTime.now();
+      final hour = now.hour;
+      final minute = now.minute;
+      final period = hour >= 12 ? 'p' : 'a';
+      final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+      return '$displayHour:${minute.toString().padLeft(2, '0')} $period. m.';
     } catch (_) {}
     return '12:00 p. m.';
   }
@@ -406,4 +513,38 @@ class ApiInventoryRepository implements InventoryRepository {
   void dispose() {
     _apiService.dispose();
   }
+}
+
+/// Helper class to hold calculated KPI data
+class _KpiData {
+  final int totalInventory;
+  final int totalSellIn;
+  final int totalSellOut;
+  final int totalRegistros;
+  final int totalSkus;
+  final String currentDate;
+  final String? previousDate;
+  final Map<String, int> itemDeltas;
+
+  const _KpiData({
+    required this.totalInventory,
+    required this.totalSellIn,
+    required this.totalSellOut,
+    required this.totalRegistros,
+    required this.totalSkus,
+    required this.currentDate,
+    this.previousDate,
+    required this.itemDeltas,
+  });
+
+  factory _KpiData.empty() => const _KpiData(
+        totalInventory: 0,
+        totalSellIn: 0,
+        totalSellOut: 0,
+        totalRegistros: 0,
+        totalSkus: 0,
+        currentDate: '',
+        previousDate: null,
+        itemDeltas: {},
+      );
 }
